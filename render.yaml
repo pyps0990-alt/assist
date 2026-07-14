@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: gsat-study-tracker
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NOTION_TOKEN
+        sync: false
+      - key: SUBJECTS_DB
+        value: 9d5b54dc-99b1-4464-9361-70d233e6fc5a
+      - key: STUDY_LOG_DB
+        value: 8bc22fcd-cbbc-4a42-80cf-6d01c173661c
+      - key: WRONG_QUESTIONS_DB
+        value: 18527005-bc64-4580-a202-af4c4f9b59b7
+      - key: TEST_RECORDS_DB
+        value: 6817cd09-047c-4426-a26b-7f9d14ea6229
+      - key: WEBHOOK_SECRET
+        sync: false
