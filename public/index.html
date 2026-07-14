@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>學測複習進度追蹤</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#7c5cff" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="學測複習追蹤" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>學測複習進度追蹤</h1>
+</header>
+
+<main>
+  <section id="dashboard" class="tab-panel active">
+    <details class="panel-block">
+      <summary><span class="summary-label"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>新增單元</span></summary>
+      <form id="addUnitForm" class="form">
+        <label>科目
+          <select name="subject" required>
+            <option value="國文">國文</option>
+            <option value="英文">英文</option>
+            <option value="數學">數學</option>
+            <option value="自然">自然</option>
+            <option value="社會">社會</option>
+          </select>
+        </label>
+        <label>單元名稱<input type="text" name="unit" required placeholder="例如：三角函數"></label>
+        <button type="submit" class="primary-btn">新增單元</button>
+      </form>
+      <p id="addUnitMsg" class="msg"></p>
+    </details>
+    <div id="subjectList" class="card-list"><p class="loading">載入中...</p></div>
+  </section>
+
+  <section id="study" class="tab-panel">
+    <div class="timer-box">
+      <div id="timerDisplay" class="timer-display">00:00:00</div>
+      <div class="timer-actions">
+        <button type="button" id="timerStart" class="timer-btn">開始計時</button>
+        <button type="button" id="timerPause" class="timer-btn" disabled>暫停</button>
+        <button type="button" id="timerReset" class="timer-btn" disabled>重設</button>
+      </div>
+    </div>
+    <form id="studyForm" class="form">
+      <label>日期<input type="date" name="date" required></label>
+      <label>科目
+        <select name="subject" required>
+          <option value="國文">國文</option>
+          <option value="英文">英文</option>
+          <option value="數學">數學</option>
+          <option value="自然">自然</option>
+          <option value="社會">社會</option>
+        </select>
+      </label>
+      <label>關聯單元
+        <select name="unitId" id="studyUnitSelect"><option value="">(不指定)</option></select>
+      </label>
+      <label>讀書時數（小時）<input type="number" step="0.01" name="hours" id="studyHoursInput" placeholder="例如 1.5，或用上面的計時器自動填入" required></label>
+      <label>內容摘要<textarea name="summary" rows="2" placeholder="今天讀了什麼"></textarea></label>
+      <button type="submit" class="primary-btn">新增紀錄</button>
+    </form>
+    <p id="studyMsg" class="msg"></p>
+  </section>
+
+  <section id="test" class="tab-panel">
+    <form id="testForm" class="form">
+      <label>日期<input type="date" name="date" required></label>
+      <label>科目
+        <select name="subject" required>
+          <option value="國文">國文</option>
+          <option value="英文">英文</option>
+          <option value="數學">數學</option>
+          <option value="自然">自然</option>
+          <option value="社會">社會</option>
+        </select>
+      </label>
+      <label>關聯單元
+        <select name="unitId" id="testUnitSelect"><option value="">(不指定)</option></select>
+      </label>
+      <label>來源（例如：模擬考三）<input type="text" name="source" required></label>
+      <label>總題數<input type="number" name="total" required></label>
+      <label>答對題數<input type="number" name="correct" required></label>
+      <label>圖片（選填）</label>
+      <div class="photo-picker">
+        <label class="photo-btn">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+          拍照
+          <input type="file" accept="image/*" capture="environment" id="testImageInputCamera" hidden>
+        </label>
+        <label class="photo-btn">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+          從相簿選擇
+          <input type="file" accept="image/*" id="testImageInputGallery" hidden>
+        </label>
+      </div>
+      <p id="testOcrMsg" class="msg"></p>
+      <img id="testImagePreview" class="img-preview" style="display:none">
+      <input type="hidden" name="imageUrl" id="testImageUrl">
+      <button type="submit" class="primary-btn">新增紀錄</button>
+    </form>
+    <p id="testMsg" class="msg"></p>
+  </section>
+
+  <section id="wrong" class="tab-panel">
+    <form id="wrongForm" class="form">
+      <label>科目
+        <select name="subject" required>
+          <option value="國文">國文</option>
+          <option value="英文">英文</option>
+          <option value="數學">數學</option>
+          <option value="自然">自然</option>
+          <option value="社會">社會</option>
+        </select>
+      </label>
+      <label>關聯單元
+        <select name="unitId" id="wrongUnitSelect"><option value="">(不指定)</option></select>
+      </label>
+      <label>圖片（可自動辨識題目文字）</label>
+      <div class="photo-picker">
+        <label class="photo-btn">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+          拍照
+          <input type="file" accept="image/*" capture="environment" id="wrongImageInputCamera" hidden>
+        </label>
+        <label class="photo-btn">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+          從相簿選擇
+          <input type="file" accept="image/*" id="wrongImageInputGallery" hidden>
+        </label>
+      </div>
+      <p id="wrongOcrMsg" class="msg"></p>
+      <img id="wrongImagePreview" class="img-preview" style="display:none">
+      <input type="hidden" name="imageUrl" id="wrongImageUrl">
+      <label>題目內容<textarea name="question" rows="3" required placeholder="拍照後會自動帶入辨識文字，可自行修改"></textarea></label>
+      <label>錯誤原因<textarea name="reason" rows="2" placeholder="哪裡想錯了"></textarea></label>
+      <label>錯誤講解<textarea name="explanation" rows="3" placeholder="正確解法 / 完整講解，之後複習時會顯示"></textarea></label>
+      <button type="submit" class="primary-btn">加入錯題本</button>
+    </form>
+    <p id="wrongMsg" class="msg"></p>
+
+    <div class="section-divider">
+      <button type="button" id="startReview" class="primary-btn review-cta">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></span>
+        開始複習錯題
+      </button>
+    </div>
+    <div id="reviewBox" class="card review-box" style="display:none">
+      <img id="reviewImage" class="img-preview" style="display:none">
+      <div id="reviewQuestion" class="title"></div>
+      <div id="reviewReason" class="subject"></div>
+      <button type="button" id="revealExplanation" class="link-btn reveal-btn" style="display:none">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2Z"/></svg></span>
+        顯示錯誤講解
+      </button>
+      <div id="reviewExplanation" class="explanation-box" style="display:none"></div>
+      <div class="card-actions">
+        <button type="button" id="reviewMastered" class="link-btn">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          已經會了
+        </button>
+        <button type="button" id="reviewAgain" class="link-btn danger">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+          還不熟，下次再來
+        </button>
+      </div>
+      <div id="reviewProgress" class="subject"></div>
+    </div>
+
+    <h2 class="section-title">錯題清單</h2>
+    <div id="wrongList" class="card-list"></div>
+  </section>
+</main>
+
+<nav class="glass-nav">
+  <button data-tab="dashboard" class="tab-btn active">
+    <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg></span>
+    總覽
+  </button>
+  <button data-tab="study" class="tab-btn">
+    <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></span>
+    讀書
+  </button>
+  <button data-tab="test" class="tab-btn">
+    <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+    考卷
+  </button>
+  <button data-tab="wrong" class="tab-btn">
+    <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.5A3 3 0 0 0 8 18a3 3 0 0 0 4-2V6a3 3 0 0 0-3-2Z"/><path d="M15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 1 5.5A3 3 0 0 1 16 18a3 3 0 0 1-4-2"/></svg></span>
+    錯題本
+  </button>
+</nav>
+
+<script src="icons.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
