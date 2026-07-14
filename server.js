@@ -1,8 +1,5 @@
 require("dotenv").config();
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
 const multer = require("multer");
 const { createWorker } = require("tesseract.js");
 const { Client } = require("@notionhq/client");
@@ -15,19 +12,38 @@ const DB = {
   testRecords: process.env.TEST_RECORDS_DB,
 };
 
-const uploadsDir = path.join(__dirname, "public", "uploads");
-fs.mkdirSync(uploadsDir, { recursive: true });
-
+// 圖片直接存進 Notion（用官方 File Upload API），不落地到本機磁碟，
+// 這樣不管伺服器重啟/重新部署，照片都不會不見。
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadsDir,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname) || ".jpg";
-      cb(null, `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
+
+async function uploadImageToNotion(buffer, filename, mimeType) {
+  const createRes = await fetch("https://api.notion.com/v1/file_uploads", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+      "Notion-Version": "2022-06-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+  const created = await createRes.json();
+  if (!createRes.ok) throw new Error(created.message || "Notion 檔案上傳建立失敗");
+
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimeType }), filename);
+  const sendRes = await fetch(created.upload_url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.NOTION_TOKEN}`, "Notion-Version": "2022-06-28" },
+    body: form,
+  });
+  const sent = await sendRes.json();
+  if (!sendRes.ok) throw new Error(sent.message || "Notion 檔案上傳傳送失敗");
+
+  return created.id;
+}
 
 const app = express();
 app.use(express.json());
@@ -173,26 +189,34 @@ app.all("/api/webhook/study-log", async (req, res) => {
   }
 });
 
-// 圖片上傳 + OCR 辨識（拍照或選檔皆可）
+// 圖片上傳（拍照或選檔皆可）：跑 OCR 辨識，並把圖片直接上傳到 Notion 保存
 app.post("/api/upload-image", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "沒有收到圖片" });
-  const url = `/uploads/${req.file.filename}`;
   let text = "";
   try {
     const worker = await createWorker(["chi_tra", "eng"]);
-    const { data } = await worker.recognize(req.file.path);
+    const { data } = await worker.recognize(req.file.buffer);
     text = (data.text || "").trim();
     await worker.terminate();
   } catch (e) {
     console.error("OCR failed:", e.message);
   }
-  res.json({ url, text });
+  try {
+    const fileUploadId = await uploadImageToNotion(
+      req.file.buffer,
+      req.file.originalname || "photo.jpg",
+      req.file.mimetype || "image/jpeg"
+    );
+    res.json({ fileUploadId, text });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // 考卷/題本紀錄
 app.post("/api/test-record", async (req, res) => {
   try {
-    const { source, date, subject, unitId, total, correct, imageUrl } = req.body;
+    const { source, date, subject, unitId, total, correct, imageFileUploadId } = req.body;
     const page = await notion.pages.create({
       parent: { database_id: DB.testRecords },
       properties: {
@@ -202,8 +226,8 @@ app.post("/api/test-record", async (req, res) => {
         關聯單元: unitId ? { relation: [{ id: unitId }] } : undefined,
         總題數: total != null ? { number: Number(total) } : undefined,
         答對題數: correct != null ? { number: Number(correct) } : undefined,
-        圖片: imageUrl
-          ? { files: [{ type: "external", name: "photo.jpg", external: { url: absoluteUrl(req, imageUrl) } }] }
+        圖片: imageFileUploadId
+          ? { files: [{ type: "file_upload", file_upload: { id: imageFileUploadId } }] }
           : undefined,
       },
     });
@@ -216,7 +240,7 @@ app.post("/api/test-record", async (req, res) => {
 // 錯題本
 app.post("/api/wrong-question", async (req, res) => {
   try {
-    const { question, subject, unitId, reason, explanation, imageUrl } = req.body;
+    const { question, subject, unitId, reason, explanation, imageFileUploadId } = req.body;
     const page = await notion.pages.create({
       parent: { database_id: DB.wrongQuestions },
       properties: {
@@ -227,8 +251,8 @@ app.post("/api/wrong-question", async (req, res) => {
         錯誤講解: explanation ? { rich_text: [{ text: { content: explanation } }] } : undefined,
         是否已複習: { checkbox: false },
         複習次數: { number: 0 },
-        圖片: imageUrl
-          ? { files: [{ type: "external", name: "photo.jpg", external: { url: absoluteUrl(req, imageUrl) } }] }
+        圖片: imageFileUploadId
+          ? { files: [{ type: "file_upload", file_upload: { id: imageFileUploadId } }] }
           : undefined,
       },
     });
@@ -295,10 +319,6 @@ app.post("/api/wrong-questions/:id/review", async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-
-function absoluteUrl(req, relativeUrl) {
-  return `${req.protocol}://${req.get("host")}${relativeUrl}`;
-}
 
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => {

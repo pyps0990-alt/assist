@@ -203,7 +203,7 @@ function bindImageUpload(inputIds, msgId, previewId, urlFieldId, onRecognized) {
       const res = await fetch("/api/upload-image", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "上傳失敗");
-      urlField.value = json.url;
+      urlField.value = json.fileUploadId;
       msg.textContent = json.text ? "辨識完成，已自動帶入文字（可修改）" : "上傳完成（未辨識到文字）";
       if (onRecognized) onRecognized(json.text);
     } catch (e) {
@@ -222,7 +222,7 @@ bindImageUpload(
   ["wrongImageInputCamera", "wrongImageInputGallery"],
   "wrongOcrMsg",
   "wrongImagePreview",
-  "wrongImageUrl",
+  "wrongImageFileUploadId",
   (text) => {
     const q = document.querySelector('#wrongForm textarea[name="question"]');
     if (text && !q.value) q.value = text;
@@ -233,7 +233,7 @@ bindImageUpload(
   ["testImageInputCamera", "testImageInputGallery"],
   "testOcrMsg",
   "testImagePreview",
-  "testImageUrl"
+  "testImageFileUploadId"
 );
 
 function resetImagePreview(previewId, urlFieldId, msgId) {
@@ -501,9 +501,9 @@ bindForm(
     source: d.source,
     total: d.total,
     correct: d.correct,
-    imageUrl: d.imageUrl || undefined,
+    imageFileUploadId: d.imageFileUploadId || undefined,
   }),
-  () => resetImagePreview("testImagePreview", "testImageUrl", "testOcrMsg")
+  () => resetImagePreview("testImagePreview", "testImageFileUploadId", "testOcrMsg")
 );
 
 bindForm(
@@ -516,11 +516,11 @@ bindForm(
     question: d.question,
     reason: d.reason,
     explanation: d.explanation,
-    imageUrl: d.imageUrl || undefined,
+    imageFileUploadId: d.imageFileUploadId || undefined,
   }),
   () => {
     loadWrongList();
-    resetImagePreview("wrongImagePreview", "wrongImageUrl", "wrongOcrMsg");
+    resetImagePreview("wrongImagePreview", "wrongImageFileUploadId", "wrongOcrMsg");
   }
 );
 
