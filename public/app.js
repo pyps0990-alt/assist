@@ -620,17 +620,21 @@ bindForm(
 // ---- AI 解析 ----
 (function initAiAnalyze() {
   const fab = document.getElementById("aiFab");
+  const scrim = document.getElementById("aiScrim");
   const popover = document.getElementById("aiPopover");
   const closeBtn = document.getElementById("aiPopoverClose");
   const btn = document.getElementById("aiAnalyzeBtn");
   const msg = document.getElementById("aiAnalyzeMsg");
   const result = document.getElementById("aiAnalyzeResult");
+  const loading = document.getElementById("aiLoading");
 
   function openPopover() {
     popover.style.display = "block";
+    scrim.style.display = "block";
   }
   function closePopover() {
     popover.style.display = "none";
+    scrim.style.display = "none";
   }
 
   fab.addEventListener("click", () => {
@@ -638,6 +642,7 @@ bindForm(
     else closePopover();
   });
   closeBtn.addEventListener("click", closePopover);
+  scrim.addEventListener("click", closePopover);
   document.addEventListener("click", (e) => {
     if (popover.style.display === "none") return;
     if (popover.contains(e.target) || fab.contains(e.target)) return;
@@ -647,7 +652,8 @@ bindForm(
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     result.style.display = "none";
-    msg.textContent = "分析中，可能需要幾秒鐘...";
+    loading.style.display = "flex";
+    msg.textContent = "";
     msg.classList.remove("error");
     try {
       const res = await fetch("/api/ai-analyze", { method: "POST" });
@@ -655,11 +661,11 @@ bindForm(
       if (!res.ok) throw new Error(json.error || "分析失敗");
       result.textContent = json.analysis;
       result.style.display = "block";
-      msg.textContent = "";
     } catch (e) {
       msg.textContent = e.message;
       msg.classList.add("error");
     } finally {
+      loading.style.display = "none";
       btn.disabled = false;
     }
   });
