@@ -619,9 +619,30 @@ bindForm(
 
 // ---- AI 解析 ----
 (function initAiAnalyze() {
+  const fab = document.getElementById("aiFab");
+  const popover = document.getElementById("aiPopover");
+  const closeBtn = document.getElementById("aiPopoverClose");
   const btn = document.getElementById("aiAnalyzeBtn");
   const msg = document.getElementById("aiAnalyzeMsg");
   const result = document.getElementById("aiAnalyzeResult");
+
+  function openPopover() {
+    popover.style.display = "block";
+  }
+  function closePopover() {
+    popover.style.display = "none";
+  }
+
+  fab.addEventListener("click", () => {
+    if (popover.style.display === "none") openPopover();
+    else closePopover();
+  });
+  closeBtn.addEventListener("click", closePopover);
+  document.addEventListener("click", (e) => {
+    if (popover.style.display === "none") return;
+    if (popover.contains(e.target) || fab.contains(e.target)) return;
+    closePopover();
+  });
 
   btn.addEventListener("click", async () => {
     btn.disabled = true;
