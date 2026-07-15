@@ -53,6 +53,19 @@ app.use(express.static("public"));
 function titleOf(page, prop) {
   return page.properties[prop]?.title?.[0]?.plain_text || "";
 }
+// 保險起見，把 AI 回覆裡可能殘留的 Markdown 符號清掉，確保前端拿到的是純文字
+function stripMarkdown(text) {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ""))
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "・")
+    .replace(/^\s*>\s?/gm, "")
+    .trim();
+}
+
 function selectOf(page, prop) {
   return page.properties[prop]?.select?.name || null;
 }
@@ -362,7 +375,8 @@ app.post("/api/ai-analyze", async (req, res) => {
 2. 錯題中反覆出現的知識點或錯誤模式
 3. 具體且優先排序的下一步複習計畫（列出 3-5 個建議，越急迫的排越前面）
 
-請條理清楚、精簡，用小標題整理，不要有多餘的客套話。
+請條理清楚、精簡，不要有多餘的客套話。用純文字回覆，不要使用任何 Markdown 語法
+（不要用 **、#、-、\`\`\` 這類符號），標題和項目用文字本身與換行、數字編號來呈現即可。
 
 【科目進度】
 ${subjectsSummary || "（無資料）"}
@@ -376,7 +390,7 @@ ${testSummary || "（無資料）"}`;
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const result = await model.generateContent(prompt);
-    res.json({ analysis: result.response.text() });
+    res.json({ analysis: stripMarkdown(result.response.text()) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

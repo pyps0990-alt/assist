@@ -245,7 +245,11 @@ main { padding: 1.1rem; }
   box-shadow: 0 6px 16px rgba(124, 92, 255, 0.32);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
-.primary-btn:active, .form button[type="submit"]:active { transform: scale(0.98); box-shadow: none; }
+.primary-btn:active, .form button[type="submit"]:active {
+  transform: scale(0.95);
+  filter: brightness(0.9);
+  box-shadow: 0 2px 6px rgba(124, 92, 255, 0.25);
+}
 
 .msg { min-height: 1.2rem; font-size: 0.85rem; color: var(--green); font-weight: 500; }
 .msg.error { color: var(--red); }
@@ -293,12 +297,17 @@ main { padding: 1.1rem; }
 .link-btn {
   background: none;
   border: none;
-  padding: 0;
+  padding: 0.2rem 0.3rem;
+  margin: -0.2rem -0.3rem;
+  border-radius: 8px;
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--accent);
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
+.link-btn:active { background: var(--accent-soft); transform: scale(0.93); }
+.link-btn.danger:active { background: var(--red-soft); }
 .link-btn.danger { color: var(--red); }
 .link-btn { display: inline-flex; align-items: center; }
 .reveal-btn { margin: 0.5rem 0; }
@@ -342,7 +351,9 @@ main { padding: 1.1rem; }
   font-weight: 700;
   cursor: pointer;
   backdrop-filter: blur(4px);
+  transition: transform 0.1s ease, background 0.15s ease;
 }
+.timer-btn:active:not(:disabled) { transform: scale(0.92); background: rgba(255, 255, 255, 0.4); }
 .timer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .photo-picker { display: flex; gap: 0.6rem; }
@@ -361,8 +372,9 @@ main { padding: 1.1rem; }
   font-weight: 600;
   cursor: pointer;
   text-align: center;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.photo-btn:active { background: var(--accent-soft); border-color: var(--accent); }
+.photo-btn:active { background: var(--accent-soft); border-color: var(--accent); transform: scale(0.95); }
 
 .img-preview {
   width: 100%;
@@ -406,8 +418,17 @@ main { padding: 1.1rem; }
   background: linear-gradient(135deg, var(--accent-2), var(--accent));
 }
 .ai-result {
-  background: var(--accent-soft);
+  background: var(--card);
+  border: 1.5px solid var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   color: var(--text);
   margin-bottom: 1.2rem;
-  line-height: 1.6;
+  padding: 1rem 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: revealDown 0.3s var(--ease);
 }
