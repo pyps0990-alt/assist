@@ -84,29 +84,38 @@ function sortSubjects(subjects) {
   });
 }
 
+let dashboardCache = null;
+
+// 先顯示上次的資料（如果有），背景悄悄重新整理，避免每次切分頁都閃一次骨架屏
 async function loadDashboard() {
   const list = document.getElementById("subjectList");
-  list.innerHTML = skeletonCards();
+  if (dashboardCache) renderSubjectList(list, dashboardCache);
+  else list.innerHTML = skeletonCards();
   try {
     const res = await fetch("/api/subjects");
     const subjects = sortSubjects(await res.json());
-    if (!subjects.length) {
-      list.innerHTML = '<p class="loading">尚無資料，先在上方新增單元</p>';
-      return;
-    }
-    list.innerHTML = subjects.map(renderCard).join("");
-    list.querySelectorAll("[data-edit]").forEach((btn) =>
-      btn.addEventListener("click", () => toggleEdit(btn.dataset.edit, subjects))
-    );
-    list.querySelectorAll("[data-save]").forEach((btn) =>
-      btn.addEventListener("click", () => saveUnit(btn.dataset.save))
-    );
-    list.querySelectorAll("[data-delete]").forEach((btn) =>
-      btn.addEventListener("click", () => deleteUnit(btn.dataset.delete))
-    );
+    dashboardCache = subjects;
+    renderSubjectList(list, subjects);
   } catch (e) {
-    list.innerHTML = `<p class="loading">載入失敗：${esc(e.message)}</p>`;
+    if (!dashboardCache) list.innerHTML = `<p class="loading">載入失敗：${esc(e.message)}</p>`;
   }
+}
+
+function renderSubjectList(list, subjects) {
+  if (!subjects.length) {
+    list.innerHTML = '<p class="loading">尚無資料，先在上方新增單元</p>';
+    return;
+  }
+  list.innerHTML = subjects.map(renderCard).join("");
+  list.querySelectorAll("[data-edit]").forEach((btn) =>
+    btn.addEventListener("click", () => toggleEdit(btn.dataset.edit))
+  );
+  list.querySelectorAll("[data-save]").forEach((btn) =>
+    btn.addEventListener("click", () => saveUnit(btn.dataset.save))
+  );
+  list.querySelectorAll("[data-delete]").forEach((btn) =>
+    btn.addEventListener("click", () => deleteUnit(btn.dataset.delete))
+  );
 }
 
 function renderCard(s) {
@@ -149,7 +158,7 @@ function renderCard(s) {
   </div>`;
 }
 
-function toggleEdit(id, subjects) {
+function toggleEdit(id) {
   const card = document.getElementById(`card-${id}`);
   const view = card.querySelector(".view");
   const form = card.querySelector(".edit-form");
@@ -192,30 +201,41 @@ async function deleteUnit(id) {
 }
 
 let wrongItemsCache = [];
+let wrongListLoaded = false;
 
+function renderWrongList(list, items) {
+  if (!items.length) {
+    list.innerHTML = '<p class="loading">尚無錯題紀錄</p>';
+    return;
+  }
+  list.innerHTML = items
+    .map(
+      (q) => `
+    <div class="card">
+      <div class="row">
+        <span class="title">${esc(q.question)}</span>
+        <span class="status-badge ${q.reviewed ? '' : 'pulse'}" ${q.reviewed ? '' : 'style="background:var(--amber-soft);color:var(--amber)"'}>${q.reviewed ? "已複習" : "未複習"}</span>
+      </div>
+      <div class="subject" ${subjectStyle(q.subject)}>${esc(q.subject || "")}</div>
+      ${q.imageUrl ? `<img src="${esc(q.imageUrl)}" class="img-preview">` : ""}
+      ${q.explanation ? `<div class="explanation-box">${icon("lightbulb")}${esc(q.explanation)}</div>` : ""}
+    </div>`
+    )
+    .join("");
+}
+
+// 先顯示上次的資料（如果有），背景悄悄重新整理，避免每次切分頁都閃一次骨架屏
 async function loadWrongList() {
   const list = document.getElementById("wrongList");
-  list.innerHTML = skeletonCards(2);
+  if (wrongListLoaded) renderWrongList(list, wrongItemsCache);
+  else list.innerHTML = skeletonCards(2);
   try {
     const res = await fetch("/api/wrong-questions");
-    const items = await res.json();
-    wrongItemsCache = items;
-    list.innerHTML = items
-      .map(
-        (q) => `
-      <div class="card">
-        <div class="row">
-          <span class="title">${esc(q.question)}</span>
-          <span class="status-badge ${q.reviewed ? '' : 'pulse'}" ${q.reviewed ? '' : 'style="background:var(--amber-soft);color:var(--amber)"'}>${q.reviewed ? "已複習" : "未複習"}</span>
-        </div>
-        <div class="subject" ${subjectStyle(q.subject)}>${esc(q.subject || "")}</div>
-        ${q.imageUrl ? `<img src="${esc(q.imageUrl)}" class="img-preview">` : ""}
-        ${q.explanation ? `<div class="explanation-box">${icon("lightbulb")}${esc(q.explanation)}</div>` : ""}
-      </div>`
-      )
-      .join("");
+    wrongItemsCache = await res.json();
+    wrongListLoaded = true;
+    renderWrongList(list, wrongItemsCache);
   } catch (e) {
-    list.innerHTML = `<p class="loading">載入失敗：${esc(e.message)}</p>`;
+    if (!wrongListLoaded) list.innerHTML = `<p class="loading">載入失敗：${esc(e.message)}</p>`;
   }
 }
 
@@ -584,6 +604,46 @@ bindForm(
     }
   });
 })();
+
+// ---- 平滑展開/收合 <details> 手風琴，取代原生的瞬間開關 ----
+document.querySelectorAll(".panel-block > summary").forEach((summary) => {
+  const details = summary.parentElement;
+  const content = Array.from(details.children).filter((c) => c !== summary);
+  summary.addEventListener("click", (e) => {
+    e.preventDefault();
+    const opening = !details.open;
+    if (opening) {
+      details.open = true;
+      const targetHeight = content.reduce((h, el) => h + el.offsetHeight, 0);
+      content.forEach((el) => {
+        el.style.overflow = "hidden";
+        el.style.maxHeight = "0px";
+        el.style.transition = "max-height 0.28s var(--ease), opacity 0.2s ease";
+        el.style.opacity = "0";
+      });
+      requestAnimationFrame(() => {
+        content.forEach((el) => {
+          el.style.maxHeight = `${el.scrollHeight}px`;
+          el.style.opacity = "1";
+        });
+      });
+      setTimeout(() => content.forEach((el) => (el.style.maxHeight = "")), 320);
+    } else {
+      content.forEach((el) => {
+        el.style.overflow = "hidden";
+        el.style.maxHeight = `${el.scrollHeight}px`;
+        el.style.transition = "max-height 0.28s var(--ease), opacity 0.2s ease";
+      });
+      requestAnimationFrame(() => {
+        content.forEach((el) => {
+          el.style.maxHeight = "0px";
+          el.style.opacity = "0";
+        });
+      });
+      setTimeout(() => (details.open = false), 280);
+    }
+  });
+});
 
 loadUnits();
 loadDashboard();
