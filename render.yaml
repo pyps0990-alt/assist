@@ -18,3 +18,5 @@ services:
         value: 6817cd09-047c-4426-a26b-7f9d14ea6229
       - key: WEBHOOK_SECRET
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false

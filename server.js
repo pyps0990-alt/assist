@@ -3,6 +3,7 @@ const express = require("express");
 const multer = require("multer");
 const { createWorker } = require("tesseract.js");
 const { Client } = require("@notionhq/client");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const DB = {
@@ -315,6 +316,67 @@ app.post("/api/wrong-questions/:id/review", async (req, res) => {
       },
     });
     res.json({ id: page2.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI 解析：彙整科目進度、錯題、考卷資料，請 Gemini 分析弱點並給複習建議
+app.post("/api/ai-analyze", async (req, res) => {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({ error: "尚未設定 GEMINI_API_KEY，請先在 .env 加上再重啟伺服器" });
+    }
+    const [subjectsRes, wrongRes, testRes] = await Promise.all([
+      notion.databases.query({ database_id: DB.subjects }),
+      notion.databases.query({ database_id: DB.wrongQuestions, page_size: 100 }),
+      notion.databases.query({ database_id: DB.testRecords, page_size: 100 }),
+    ]);
+
+    const subjectsSummary = subjectsRes.results
+      .map((p) => `${selectOf(p, "科目")}/${titleOf(p, "單元")}：狀態=${selectOf(p, "狀態") || "未設定"}，熟悉度=${numberOf(p, "熟悉度") ?? "未評分"}`)
+      .join("\n");
+
+    const wrongSummary = wrongRes.results
+      .map((p) => {
+        const q = titleOf(p, "題目內容");
+        const subject = selectOf(p, "科目");
+        const reason = p.properties["錯誤原因"]?.rich_text?.[0]?.plain_text || "";
+        const reviewed = p.properties["是否已複習"]?.checkbox ? "已複習" : "未複習";
+        return `[${subject || "未分類"}] ${q}｜原因：${reason || "無"}｜${reviewed}`;
+      })
+      .join("\n");
+
+    const testSummary = testRes.results
+      .map((p) => {
+        const subject = selectOf(p, "科目");
+        const total = numberOf(p, "總題數");
+        const correct = numberOf(p, "答對題數");
+        const acc = total ? Math.round((correct / total) * 100) : null;
+        return `${titleOf(p, "來源")}｜${subject || ""}｜${correct}/${total}（${acc ?? "-"}%）`;
+      })
+      .join("\n");
+
+    const prompt = `你是一個學測複習教練，請用繁體中文分析以下學生的複習資料，並給出：
+1. 各科弱點趨勢摘要（哪個科目/單元最弱、正確率最低）
+2. 錯題中反覆出現的知識點或錯誤模式
+3. 具體且優先排序的下一步複習計畫（列出 3-5 個建議，越急迫的排越前面）
+
+請條理清楚、精簡，用小標題整理，不要有多餘的客套話。
+
+【科目進度】
+${subjectsSummary || "（無資料）"}
+
+【錯題本】
+${wrongSummary || "（無資料）"}
+
+【考卷/題本紀錄】
+${testSummary || "（無資料）"}`;
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const result = await model.generateContent(prompt);
+    res.json({ analysis: result.response.text() });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

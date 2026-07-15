@@ -1,15 +1,27 @@
 const tabBtns = document.querySelectorAll(".tab-btn");
 const panels = document.querySelectorAll(".tab-panel");
+const navIndicator = document.getElementById("navIndicator");
+
+function moveNavIndicator(btn) {
+  if (!navIndicator) return;
+  navIndicator.style.left = `${btn.offsetLeft}px`;
+  navIndicator.style.width = `${btn.offsetWidth}px`;
+}
+
 tabBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
     tabBtns.forEach((b) => b.classList.remove("active"));
     panels.forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(btn.dataset.tab).classList.add("active");
+    moveNavIndicator(btn);
     if (btn.dataset.tab === "dashboard") loadDashboard();
     if (btn.dataset.tab === "wrong") loadWrongList();
   });
 });
+
+window.addEventListener("load", () => moveNavIndicator(document.querySelector(".tab-btn.active")));
+window.addEventListener("resize", () => moveNavIndicator(document.querySelector(".tab-btn.active")));
 
 function esc(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({
@@ -51,12 +63,33 @@ function subjectStyle(subject) {
 const SUBJECT_OPTIONS = ["國文", "英文", "數學", "自然", "社會"];
 const STATUS_OPTIONS = ["未開始", "進行中", "已完成", "需複習"];
 
+function skeletonCards(n = 3) {
+  return Array.from({ length: n }, () => '<div class="skeleton-card"></div>').join("");
+}
+
+const SUBJECT_ORDER = ["國文", "英文", "數學", "自然", "社會"];
+const STATUS_PRIORITY = { 需複習: 0, 進行中: 1, 未開始: 2, 已完成: 3 };
+
+// 自動排序：先依科目固定順序分組，組內把「需複習/進行中」排前面，
+// 熟悉度低的（較弱的單元）優先，方便一打開就看到最需要複習的內容
+function sortSubjects(subjects) {
+  return [...subjects].sort((a, b) => {
+    const subjectDiff = SUBJECT_ORDER.indexOf(a.subject) - SUBJECT_ORDER.indexOf(b.subject);
+    if (subjectDiff !== 0) return subjectDiff;
+    const statusDiff = (STATUS_PRIORITY[a.status] ?? 9) - (STATUS_PRIORITY[b.status] ?? 9);
+    if (statusDiff !== 0) return statusDiff;
+    const masteryDiff = (a.mastery ?? 99) - (b.mastery ?? 99);
+    if (masteryDiff !== 0) return masteryDiff;
+    return a.unit.localeCompare(b.unit, "zh-Hant");
+  });
+}
+
 async function loadDashboard() {
   const list = document.getElementById("subjectList");
-  list.innerHTML = '<p class="loading">載入中...</p>';
+  list.innerHTML = skeletonCards();
   try {
     const res = await fetch("/api/subjects");
-    const subjects = await res.json();
+    const subjects = sortSubjects(await res.json());
     if (!subjects.length) {
       list.innerHTML = '<p class="loading">尚無資料，先在上方新增單元</p>';
       return;
@@ -162,6 +195,7 @@ let wrongItemsCache = [];
 
 async function loadWrongList() {
   const list = document.getElementById("wrongList");
+  list.innerHTML = skeletonCards(2);
   try {
     const res = await fetch("/api/wrong-questions");
     const items = await res.json();
@@ -172,7 +206,7 @@ async function loadWrongList() {
       <div class="card">
         <div class="row">
           <span class="title">${esc(q.question)}</span>
-          <span class="status-badge" ${q.reviewed ? '' : 'style="background:var(--amber-soft);color:var(--amber)"'}>${q.reviewed ? "已複習" : "未複習"}</span>
+          <span class="status-badge ${q.reviewed ? '' : 'pulse'}" ${q.reviewed ? '' : 'style="background:var(--amber-soft);color:var(--amber)"'}>${q.reviewed ? "已複習" : "未複習"}</span>
         </div>
         <div class="subject" ${subjectStyle(q.subject)}>${esc(q.subject || "")}</div>
         ${q.imageUrl ? `<img src="${esc(q.imageUrl)}" class="img-preview">` : ""}
@@ -523,6 +557,33 @@ bindForm(
     resetImagePreview("wrongImagePreview", "wrongImageFileUploadId", "wrongOcrMsg");
   }
 );
+
+// ---- AI 解析 ----
+(function initAiAnalyze() {
+  const btn = document.getElementById("aiAnalyzeBtn");
+  const msg = document.getElementById("aiAnalyzeMsg");
+  const result = document.getElementById("aiAnalyzeResult");
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    result.style.display = "none";
+    msg.textContent = "分析中，可能需要幾秒鐘...";
+    msg.classList.remove("error");
+    try {
+      const res = await fetch("/api/ai-analyze", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "分析失敗");
+      result.textContent = json.analysis;
+      result.style.display = "block";
+      msg.textContent = "";
+    } catch (e) {
+      msg.textContent = e.message;
+      msg.classList.add("error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
 
 loadUnits();
 loadDashboard();
