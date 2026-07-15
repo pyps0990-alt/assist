@@ -1,6 +1,7 @@
 const tabBtns = document.querySelectorAll(".tab-btn");
 const panels = document.querySelectorAll(".tab-panel");
 const navIndicator = document.getElementById("navIndicator");
+const tabOrder = Array.from(tabBtns).map((b) => b.dataset.tab);
 
 function moveNavIndicator(btn) {
   if (!navIndicator) return;
@@ -8,20 +9,58 @@ function moveNavIndicator(btn) {
   navIndicator.style.width = `${btn.offsetWidth}px`;
 }
 
+function activateTab(tabName) {
+  const btn = Array.from(tabBtns).find((b) => b.dataset.tab === tabName);
+  if (!btn || btn.classList.contains("active")) return;
+  tabBtns.forEach((b) => b.classList.remove("active"));
+  panels.forEach((p) => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById(tabName).classList.add("active");
+  moveNavIndicator(btn);
+  if (tabName === "dashboard") loadDashboard();
+  if (tabName === "wrong") loadWrongList();
+}
+
 tabBtns.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    tabBtns.forEach((b) => b.classList.remove("active"));
-    panels.forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
-    moveNavIndicator(btn);
-    if (btn.dataset.tab === "dashboard") loadDashboard();
-    if (btn.dataset.tab === "wrong") loadWrongList();
-  });
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
 
 window.addEventListener("load", () => moveNavIndicator(document.querySelector(".tab-btn.active")));
 window.addEventListener("resize", () => moveNavIndicator(document.querySelector(".tab-btn.active")));
+
+// ---- 左右滑動切換分頁 ----
+(function initSwipe() {
+  const main = document.querySelector("main");
+  let startX = 0;
+  let startY = 0;
+  let swiping = false;
+
+  main.addEventListener(
+    "touchstart",
+    (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      swiping = true;
+    },
+    { passive: true }
+  );
+
+  main.addEventListener(
+    "touchend",
+    (e) => {
+      if (!swiping) return;
+      swiping = false;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const activeTab = document.querySelector(".tab-btn.active").dataset.tab;
+      const idx = tabOrder.indexOf(activeTab);
+      const nextIdx = dx < 0 ? idx + 1 : idx - 1;
+      if (nextIdx >= 0 && nextIdx < tabOrder.length) activateTab(tabOrder[nextIdx]);
+    },
+    { passive: true }
+  );
+})();
 
 function esc(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({
