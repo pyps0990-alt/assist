@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>學測倒數</title>
+<style>
+  :root {
+    --accent: #7c5cff;
+    --accent-2: #1fb3a3;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .card {
+    text-align: center;
+    padding: 1.2rem 1.5rem;
+    width: 100%;
+  }
+  .label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    opacity: 0.9;
+    margin-bottom: 0.5rem;
+  }
+  .units {
+    display: flex;
+    justify-content: center;
+    gap: 0.8rem;
+    flex-wrap: nowrap;
+  }
+  .unit { min-width: 52px; }
+  .unit .num {
+    font-size: 2.2rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .unit .unit-label {
+    font-size: 0.65rem;
+    opacity: 0.85;
+    margin-top: 0.2rem;
+  }
+  .quote {
+    margin-top: 0.7rem;
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="label">🌅 距離 116 學測還有</div>
+  <div class="units">
+    <div class="unit"><div class="num" id="d">--</div><div class="unit-label">天</div></div>
+    <div class="unit"><div class="num" id="h">--</div><div class="unit-label">時</div></div>
+    <div class="unit"><div class="num" id="m">--</div><div class="unit-label">分</div></div>
+    <div class="unit"><div class="num" id="s">--</div><div class="unit-label">秒</div></div>
+  </div>
+  <div class="quote">穩住配速，我們頂峰相見 🚀</div>
+</div>
+<script>
+  const target = new Date("2027-01-22T00:00:00+08:00").getTime();
+  function tick() {
+    const diff = Math.max(0, target - Date.now());
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById("d").textContent = d;
+    document.getElementById("h").textContent = String(h).padStart(2, "0");
+    document.getElementById("m").textContent = String(m).padStart(2, "0");
+    document.getElementById("s").textContent = String(s).padStart(2, "0");
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
