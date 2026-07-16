@@ -11,7 +11,10 @@ const DB = {
   studyLog: process.env.STUDY_LOG_DB,
   wrongQuestions: process.env.WRONG_QUESTIONS_DB,
   testRecords: process.env.TEST_RECORDS_DB,
+  mockExams: process.env.MOCK_EXAMS_DB,
 };
+
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 // 圖片直接存進 Notion（用官方 File Upload API），不落地到本機磁碟，
 // 這樣不管伺服器重啟/重新部署，照片都不會不見。
@@ -45,6 +48,98 @@ async function uploadImageToNotion(buffer, filename, mimeType) {
 
   return created.id;
 }
+
+// 從 Notion 頁面的某個 Files 屬性抓出目前的簽署網址，下載成 Buffer 給 Gemini 用
+async function fetchNotionFileBuffer(page, propName) {
+  const file = page.properties[propName]?.files?.[0];
+  const url = file?.file?.url || file?.external?.url;
+  if (!url) return null;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`下載圖片失敗（${propName}）`);
+  const arrayBuffer = await res.arrayBuffer();
+  return { buffer: Buffer.from(arrayBuffer), mimeType: file.file?.url ? "image/jpeg" : res.headers.get("content-type") || "image/jpeg" };
+}
+
+// 把圖片以 Gemini 多模態直接送去分析，回傳去除 Markdown 的純文字回饋
+async function gradeImageWithGemini(buffer, mimeType, promptTemplate) {
+  if (!genAI) throw new Error("尚未設定 GEMINI_API_KEY，請先在 .env 加上再重啟伺服器");
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  const result = await model.generateContent([
+    { inlineData: { data: buffer.toString("base64"), mimeType } },
+    { text: promptTemplate },
+  ]);
+  return stripMarkdown(result.response.text());
+}
+
+function extractScore(text, label) {
+  const m = text.match(new RegExp(`${label}[:：]\\s*([\\d.]+)`));
+  return m ? Number(m[1]) : null;
+}
+
+const PLAIN_TEXT_RULE = "用繁體中文回覆，純文字，不要使用任何 Markdown 語法（不要用 **、#、-、```這類符號）。";
+
+// 各科專屬批改 rubric（「專屬解析設定」），對應到考卷紀錄裡的各個 Files/Number/RichText 欄位
+const GRADE_BLOCKS = {
+  essay1: {
+    image: "作文一圖片",
+    score: "作文一分數",
+    feedback: "作文一回饋",
+    scoreLabel: "分數",
+    prompt: `你是大考中心國文作文閱卷老師，請依照學測寫作測驗評分規準，依下列四個面向逐項評論這篇作文的照片內容：
+1. 立意取材：主旨是否明確、選材是否恰當
+2. 結構組織：段落安排、起承轉合是否流暢
+3. 遣詞造句：用字遣詞是否精準生動、句型是否有變化
+4. 錯別字、格式及標點符號：是否有明顯錯誤
+
+每項給簡短評語，最後綜合給一個 0-25 分的總分。最後另起一行，只寫「分數:X」（X 是總分數字，不要有其他文字）。${PLAIN_TEXT_RULE}`,
+  },
+  essay2: {
+    image: "作文二圖片",
+    score: "作文二分數",
+    feedback: "作文二回饋",
+    scoreLabel: "分數",
+    prompt: `你是大考中心國文作文閱卷老師，請依照學測寫作測驗評分規準，依下列四個面向逐項評論這篇作文的照片內容：
+1. 立意取材：主旨是否明確、選材是否恰當
+2. 結構組織：段落安排、起承轉合是否流暢
+3. 遣詞造句：用字遣詞是否精準生動、句型是否有變化
+4. 錯別字、格式及標點符號：是否有明顯錯誤
+
+每項給簡短評語，最後綜合給一個 0-25 分的總分。最後另起一行，只寫「分數:X」（X 是總分數字，不要有其他文字）。${PLAIN_TEXT_RULE}`,
+  },
+  mathWork: {
+    image: "手寫題圖片",
+    score: "手寫題正確度",
+    feedback: "手寫題回饋",
+    scoreLabel: "正確度",
+    prompt: `你是數學科老師，請逐步驟轉錄這張照片裡的手寫解題過程，並：
+1. 依序列出每一個步驟在做什麼
+2. 標出從哪一步開始出錯（如果有錯的話）
+3. 判斷錯誤是「計算錯誤」還是「觀念錯誤」
+4. 給出修正建議
+
+最後另起一行，只寫「正確度:X」（X 是 0-100 的整數，代表這份解題過程整體的正確程度百分比，不要有其他文字）。${PLAIN_TEXT_RULE}`,
+  },
+  englishEssay: {
+    image: "英文作文圖片",
+    score: "英文作文分數",
+    feedback: "英文作文回饋",
+    scoreLabel: "分數",
+    prompt: `你是學測英文寫作閱卷老師，請依照學測英文寫作評分規準，依下列面向逐項評論這篇作文的照片內容：
+1. 內容：是否切題、內容是否充實
+2. 組織：段落安排、句子銜接是否流暢
+3. 文法句構：文法是否正確、句型是否多樣
+4. 字彙拼字：用字是否恰當、拼字是否正確
+
+每項給簡短評語（可中英夾雜），最後綜合給一個 0-20 分的總分。最後另起一行，只寫「分數:X」（X 是總分數字，不要有其他文字）。${PLAIN_TEXT_RULE}`,
+  },
+  englishWriting: {
+    image: "英文手寫圖片",
+    score: null,
+    feedback: "英文手寫回饋",
+    scoreLabel: null,
+    prompt: `你是英文科老師，這張照片是學生的英文手寫作答（可能是句子改寫、翻譯或簡答）。請逐題檢查文法、用字、拼字是否正確，指出錯誤並給出修正建議，用簡短清楚的方式呈現。${PLAIN_TEXT_RULE}`,
+  },
+};
 
 const app = express();
 app.use(express.json());
@@ -102,6 +197,7 @@ app.get("/api/subjects", async (req, res) => {
       lastReviewed: p.properties["最後複習日期"]?.date?.start || null,
       studyHours: rollupNumberOf(p, "累積讀書時數"),
       accuracy: rollupNumberOf(p, "平均正確率"),
+      reviewRate: rollupNumberOf(p, "錯題複習率"),
     }));
     res.json(items);
   } catch (e) {
@@ -227,25 +323,119 @@ app.post("/api/upload-image", upload.single("image"), async (req, res) => {
   }
 });
 
+function fileProp(fileUploadId) {
+  return fileUploadId ? { files: [{ type: "file_upload", file_upload: { id: fileUploadId } }] } : undefined;
+}
+
+function buildTestRecordProperties(body) {
+  const {
+    source, date, subject, unitId, total, correct, minutes, sourceType,
+    imageFileUploadId, score,
+    essay1ImageId, essay1Score,
+    essay2ImageId, essay2Score,
+    mathWorkImageId,
+    englishEssayImageId, englishEssayScore,
+    englishWritingImageId,
+  } = body;
+  return {
+    來源: source != null ? { title: [{ text: { content: source } }] } : undefined,
+    日期: date ? { date: { start: date } } : undefined,
+    科目: subject ? { select: { name: subject } } : undefined,
+    關聯單元: unitId ? { relation: [{ id: unitId }] } : undefined,
+    總題數: total != null && total !== "" ? { number: Number(total) } : undefined,
+    答對題數: correct != null && correct !== "" ? { number: Number(correct) } : undefined,
+    作答時間: minutes != null && minutes !== "" ? { number: Number(minutes) } : undefined,
+    來源類型: sourceType ? { select: { name: sourceType } } : undefined,
+    分數: score != null && score !== "" ? { number: Number(score) } : undefined,
+    圖片: fileProp(imageFileUploadId),
+    作文一圖片: fileProp(essay1ImageId),
+    作文一分數: essay1Score != null && essay1Score !== "" ? { number: Number(essay1Score) } : undefined,
+    作文二圖片: fileProp(essay2ImageId),
+    作文二分數: essay2Score != null && essay2Score !== "" ? { number: Number(essay2Score) } : undefined,
+    手寫題圖片: fileProp(mathWorkImageId),
+    英文作文圖片: fileProp(englishEssayImageId),
+    英文作文分數: englishEssayScore != null && englishEssayScore !== "" ? { number: Number(englishEssayScore) } : undefined,
+    英文手寫圖片: fileProp(englishWritingImageId),
+  };
+}
+
 // 考卷/題本紀錄
 app.post("/api/test-record", async (req, res) => {
   try {
-    const { source, date, subject, unitId, total, correct, imageFileUploadId } = req.body;
     const page = await notion.pages.create({
       parent: { database_id: DB.testRecords },
-      properties: {
-        來源: { title: [{ text: { content: source } }] },
-        日期: { date: { start: date } },
-        科目: subject ? { select: { name: subject } } : undefined,
-        關聯單元: unitId ? { relation: [{ id: unitId }] } : undefined,
-        總題數: total != null ? { number: Number(total) } : undefined,
-        答對題數: correct != null ? { number: Number(correct) } : undefined,
-        圖片: imageFileUploadId
-          ? { files: [{ type: "file_upload", file_upload: { id: imageFileUploadId } }] }
-          : undefined,
-      },
+      properties: buildTestRecordProperties(req.body),
     });
     res.json({ id: page.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 依科目篩選查詢考卷/題本紀錄
+app.get("/api/test-records", async (req, res) => {
+  try {
+    const { subject } = req.query;
+    const result = await notion.databases.query({
+      database_id: DB.testRecords,
+      filter: subject ? { property: "科目", select: { equals: subject } } : undefined,
+      sorts: [{ timestamp: "created_time", direction: "descending" }],
+      page_size: 100,
+    });
+    const items = result.results.map((p) => ({
+      id: p.id,
+      source: titleOf(p, "來源"),
+      date: p.properties["日期"]?.date?.start || null,
+      subject: selectOf(p, "科目"),
+      sourceType: selectOf(p, "來源類型"),
+      minutes: numberOf(p, "作答時間"),
+      total: numberOf(p, "總題數"),
+      correct: numberOf(p, "答對題數"),
+      score: numberOf(p, "分數"),
+      imageUrl: fileUrlOf(p, "圖片"),
+      essay1: { imageUrl: fileUrlOf(p, "作文一圖片"), score: numberOf(p, "作文一分數"), feedback: p.properties["作文一回饋"]?.rich_text?.[0]?.plain_text || "" },
+      essay2: { imageUrl: fileUrlOf(p, "作文二圖片"), score: numberOf(p, "作文二分數"), feedback: p.properties["作文二回饋"]?.rich_text?.[0]?.plain_text || "" },
+      mathWork: { imageUrl: fileUrlOf(p, "手寫題圖片"), score: numberOf(p, "手寫題正確度"), feedback: p.properties["手寫題回饋"]?.rich_text?.[0]?.plain_text || "" },
+      englishEssay: { imageUrl: fileUrlOf(p, "英文作文圖片"), score: numberOf(p, "英文作文分數"), feedback: p.properties["英文作文回饋"]?.rich_text?.[0]?.plain_text || "" },
+      englishWriting: { imageUrl: fileUrlOf(p, "英文手寫圖片"), feedback: p.properties["英文手寫回饋"]?.rich_text?.[0]?.plain_text || "" },
+    }));
+    res.json(items);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 更新考卷/題本紀錄
+app.patch("/api/test-records/:id", async (req, res) => {
+  try {
+    const properties = buildTestRecordProperties(req.body);
+    Object.keys(properties).forEach((k) => properties[k] === undefined && delete properties[k]);
+    const page = await notion.pages.update({ page_id: req.params.id, properties });
+    res.json({ id: page.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI 批改：作文一/作文二/數A手寫過程/英文作文/英文手寫，用該筆紀錄裡對應的照片去跑 Gemini
+app.post("/api/test-records/:id/grade", async (req, res) => {
+  try {
+    const { block } = req.body;
+    const config = GRADE_BLOCKS[block];
+    if (!config) return res.status(400).json({ error: "未知的批改區塊" });
+
+    const page = await notion.pages.retrieve({ page_id: req.params.id });
+    const fileData = await fetchNotionFileBuffer(page, config.image);
+    if (!fileData) return res.status(400).json({ error: "這個區塊還沒有上傳圖片" });
+
+    const feedback = await gradeImageWithGemini(fileData.buffer, fileData.mimeType, config.prompt);
+    const score = config.score ? extractScore(feedback, config.scoreLabel) : null;
+
+    const properties = { [config.feedback]: { rich_text: [{ text: { content: feedback } }] } };
+    if (config.score && score != null) properties[config.score] = { number: score };
+    await notion.pages.update({ page_id: req.params.id, properties });
+
+    res.json({ feedback, score });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -387,10 +577,55 @@ ${wrongSummary || "（無資料）"}
 【考卷/題本紀錄】
 ${testSummary || "（無資料）"}`;
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const result = await model.generateContent(prompt);
     res.json({ analysis: stripMarkdown(result.response.text()) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 模擬考成績
+app.post("/api/mock-exams", async (req, res) => {
+  try {
+    const { name, date, chinese, mathA, science, english, notes } = req.body;
+    const page = await notion.pages.create({
+      parent: { database_id: DB.mockExams },
+      properties: {
+        名稱: { title: [{ text: { content: name } }] },
+        日期: { date: { start: date } },
+        國文級分: chinese != null && chinese !== "" ? { number: Number(chinese) } : undefined,
+        數A級分: mathA != null && mathA !== "" ? { number: Number(mathA) } : undefined,
+        自然級分: science != null && science !== "" ? { number: Number(science) } : undefined,
+        英文級分: english != null && english !== "" ? { number: Number(english) } : undefined,
+        備註: notes ? { rich_text: [{ text: { content: notes } }] } : undefined,
+      },
+    });
+    res.json({ id: page.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/mock-exams", async (req, res) => {
+  try {
+    const result = await notion.databases.query({
+      database_id: DB.mockExams,
+      sorts: [{ property: "日期", direction: "ascending" }],
+      page_size: 100,
+    });
+    const items = result.results.map((p) => ({
+      id: p.id,
+      name: titleOf(p, "名稱"),
+      date: p.properties["日期"]?.date?.start || null,
+      chinese: numberOf(p, "國文級分"),
+      mathA: numberOf(p, "數A級分"),
+      science: numberOf(p, "自然級分"),
+      english: numberOf(p, "英文級分"),
+      total: p.properties["總級分"]?.formula?.number ?? null,
+      notes: p.properties["備註"]?.rich_text?.[0]?.plain_text || "",
+    }));
+    res.json(items);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -22,10 +22,9 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   --subject-國文: #dd5f79;
-  --subject-英文: #3a8bd6;
-  --subject-數學: #dd8f2a;
+  --subject-數A: #dd8f2a;
   --subject-自然: #1fa868;
-  --subject-社會: #8459dd;
+  --subject-英文: #3a8bd6;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -50,10 +49,9 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.4);
 
     --subject-國文: #f08298;
-    --subject-英文: #6fb2f0;
-    --subject-數學: #f0ab55;
+    --subject-數A: #f0ab55;
     --subject-自然: #52d191;
-    --subject-社會: #ab8bf0;
+    --subject-英文: #6fb2f0;
   }
 }
 * { box-sizing: border-box; }
@@ -386,6 +384,48 @@ main { padding: 1.1rem; }
   background: var(--bg);
   animation: fadeIn 0.3s var(--ease);
 }
+
+.subject-chip-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.subject-chip {
+  flex: 1;
+  padding: 0.65rem 0.4rem;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.subject-chip:active { transform: scale(0.95); }
+.subject-chip.active[data-subject="國文"] { background: var(--subject-國文); border-color: var(--subject-國文); color: #fff; }
+.subject-chip.active[data-subject="數A"] { background: var(--subject-數A); border-color: var(--subject-數A); color: #fff; }
+.subject-chip.active[data-subject="自然"] { background: var(--subject-自然); border-color: var(--subject-自然); color: #fff; }
+.subject-chip.active[data-subject="英文"] { background: var(--subject-英文); border-color: var(--subject-英文); color: #fff; }
+
+.subject-only { display: flex; flex-direction: column; gap: 0.9rem; animation: fadeIn 0.25s var(--ease); }
+
+.test-block-title { font-weight: 700; font-size: 0.85rem; color: var(--text); margin-top: 0.2rem; }
+.grade-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.grade-btn:active { transform: scale(0.94); }
+.grade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.grade-block { border-top: 1px solid var(--border); padding-top: 0.7rem; margin-top: 0.7rem; }
+.grade-score { font-weight: 800; color: var(--accent); }
 
 .section-divider { margin: 1.4rem 0 1rem; }
 .review-cta { width: 100%; }

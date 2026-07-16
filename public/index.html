@@ -27,10 +27,9 @@
         <label>科目
           <select name="subject" required>
             <option value="國文">國文</option>
-            <option value="英文">英文</option>
-            <option value="數學">數學</option>
+            <option value="數A">數A</option>
             <option value="自然">自然</option>
-            <option value="社會">社會</option>
+            <option value="英文">英文</option>
           </select>
         </label>
         <label>單元名稱<input type="text" name="unit" required placeholder="例如：三角函數"></label>
@@ -55,10 +54,9 @@
       <label>科目
         <select name="subject" required>
           <option value="國文">國文</option>
-          <option value="英文">英文</option>
-          <option value="數學">數學</option>
+          <option value="數A">數A</option>
           <option value="自然">自然</option>
-          <option value="社會">社會</option>
+          <option value="英文">英文</option>
         </select>
       </label>
       <label>關聯單元
@@ -72,24 +70,32 @@
   </section>
 
   <section id="test" class="tab-panel">
-    <form id="testForm" class="form">
+    <div class="subject-chip-row" id="testSubjectChips">
+      <button type="button" class="subject-chip" data-subject="國文">國文</button>
+      <button type="button" class="subject-chip" data-subject="數A">數A</button>
+      <button type="button" class="subject-chip" data-subject="自然">自然</button>
+      <button type="button" class="subject-chip" data-subject="英文">英文</button>
+    </div>
+
+    <p id="testEmptyHint" class="loading">先選一個科目，開始記錄考卷/題本</p>
+
+    <form id="testForm" class="form" style="display:none">
+      <input type="hidden" name="subject" id="testSubjectField">
       <label>日期<input type="date" name="date" required></label>
-      <label>科目
-        <select name="subject" required>
-          <option value="國文">國文</option>
-          <option value="英文">英文</option>
-          <option value="數學">數學</option>
-          <option value="自然">自然</option>
-          <option value="社會">社會</option>
+      <label>來源類型
+        <select name="sourceType" required>
+          <option value="參考書題目">參考書題目</option>
+          <option value="模擬題本">模擬題本</option>
+          <option value="學測題本">學測題本</option>
         </select>
       </label>
+      <label>來源名稱（例如：模擬考三）<input type="text" name="source" required></label>
       <label>關聯單元
         <select name="unitId" id="testUnitSelect"><option value="">(不指定)</option></select>
       </label>
-      <label>來源（例如：模擬考三）<input type="text" name="source" required></label>
-      <label>總題數<input type="number" name="total" required></label>
-      <label>答對題數<input type="number" name="correct" required></label>
-      <label>圖片（選填）</label>
+      <label>做題時間（分鐘）<input type="number" name="minutes" placeholder="花了多少時間寫"></label>
+
+      <label>整體圖片（選填，可拍下整份題本）</label>
       <div class="photo-picker">
         <label class="photo-btn">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
@@ -105,9 +111,128 @@
       <p id="testOcrMsg" class="msg"></p>
       <img id="testImagePreview" class="img-preview" style="display:none">
       <input type="hidden" name="imageFileUploadId" id="testImageFileUploadId">
+
+      <div class="subject-only" data-subjects="國文,數A,自然">
+        <label>總題數<input type="number" name="total"></label>
+        <label>答對題數<input type="number" name="correct"></label>
+      </div>
+
+      <div class="subject-only" data-subjects="英文">
+        <label>分數<input type="number" name="score" placeholder="這次考試的總分"></label>
+      </div>
+
+      <div class="subject-only" data-subjects="國文">
+        <label>作文一圖片</label>
+        <div class="photo-picker">
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            拍照
+            <input type="file" accept="image/*" capture="environment" id="essay1InputCamera" hidden>
+          </label>
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+            從相簿選擇
+            <input type="file" accept="image/*" id="essay1InputGallery" hidden>
+          </label>
+        </div>
+        <img id="essay1Preview" class="img-preview" style="display:none">
+        <input type="hidden" name="essay1ImageId" id="essay1ImageId">
+
+        <label>作文二圖片</label>
+        <div class="photo-picker">
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            拍照
+            <input type="file" accept="image/*" capture="environment" id="essay2InputCamera" hidden>
+          </label>
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+            從相簿選擇
+            <input type="file" accept="image/*" id="essay2InputGallery" hidden>
+          </label>
+        </div>
+        <img id="essay2Preview" class="img-preview" style="display:none">
+        <input type="hidden" name="essay2ImageId" id="essay2ImageId">
+      </div>
+
+      <div class="subject-only" data-subjects="數A">
+        <label>手寫題過程圖片</label>
+        <div class="photo-picker">
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            拍照
+            <input type="file" accept="image/*" capture="environment" id="mathWorkInputCamera" hidden>
+          </label>
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+            從相簿選擇
+            <input type="file" accept="image/*" id="mathWorkInputGallery" hidden>
+          </label>
+        </div>
+        <img id="mathWorkPreview" class="img-preview" style="display:none">
+        <input type="hidden" name="mathWorkImageId" id="mathWorkImageId">
+      </div>
+
+      <div class="subject-only" data-subjects="英文">
+        <label>英文作文圖片</label>
+        <div class="photo-picker">
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            拍照
+            <input type="file" accept="image/*" capture="environment" id="englishEssayInputCamera" hidden>
+          </label>
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+            從相簿選擇
+            <input type="file" accept="image/*" id="englishEssayInputGallery" hidden>
+          </label>
+        </div>
+        <img id="englishEssayPreview" class="img-preview" style="display:none">
+        <input type="hidden" name="englishEssayImageId" id="englishEssayImageId">
+
+        <label>英文手寫作答圖片</label>
+        <div class="photo-picker">
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            拍照
+            <input type="file" accept="image/*" capture="environment" id="englishWritingInputCamera" hidden>
+          </label>
+          <label class="photo-btn">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-9 9"/></svg></span>
+            從相簿選擇
+            <input type="file" accept="image/*" id="englishWritingInputGallery" hidden>
+          </label>
+        </div>
+        <img id="englishWritingPreview" class="img-preview" style="display:none">
+        <input type="hidden" name="englishWritingImageId" id="englishWritingImageId">
+      </div>
+
       <button type="submit" class="primary-btn">新增紀錄</button>
     </form>
     <p id="testMsg" class="msg"></p>
+
+    <h2 class="section-title" id="testListTitle" style="display:none">紀錄清單</h2>
+    <div id="testList" class="card-list"></div>
+  </section>
+
+  <section id="mockExam" class="tab-panel">
+    <form id="mockExamForm" class="form">
+      <label>模擬考名稱<input type="text" name="name" required placeholder="例如：113學測模擬考三"></label>
+      <label>日期<input type="date" name="date" required></label>
+      <label>國文級分<input type="number" name="chinese" min="0" max="15"></label>
+      <label>數A級分<input type="number" name="mathA" min="0" max="15"></label>
+      <label>自然級分<input type="number" name="science" min="0" max="15"></label>
+      <label>英文級分<input type="number" name="english" min="0" max="15"></label>
+      <label>備註<textarea name="notes" rows="2"></textarea></label>
+      <button type="submit" class="primary-btn">新增模擬考成績</button>
+    </form>
+    <p id="mockExamMsg" class="msg"></p>
+
+    <h2 class="section-title">成績趨勢</h2>
+    <div id="mockExamChart" class="card"><p class="loading">載入中...</p></div>
+
+    <h2 class="section-title">歷屆紀錄</h2>
+    <div id="mockExamList" class="card-list"></div>
   </section>
 
   <section id="wrong" class="tab-panel">
@@ -115,10 +240,9 @@
       <label>科目
         <select name="subject" required>
           <option value="國文">國文</option>
-          <option value="英文">英文</option>
-          <option value="數學">數學</option>
+          <option value="數A">數A</option>
           <option value="自然">自然</option>
-          <option value="社會">社會</option>
+          <option value="英文">英文</option>
         </select>
       </label>
       <label>關聯單元
@@ -193,6 +317,10 @@
   <button data-tab="test" class="tab-btn">
     <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
     考卷
+  </button>
+  <button data-tab="mockExam" class="tab-btn">
+    <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span>
+    模擬考
   </button>
   <button data-tab="wrong" class="tab-btn">
     <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.5A3 3 0 0 0 8 18a3 3 0 0 0 4-2V6a3 3 0 0 0-3-2Z"/><path d="M15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 1 5.5A3 3 0 0 1 16 18a3 3 0 0 1-4-2"/></svg></span>

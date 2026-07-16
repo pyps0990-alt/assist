@@ -16,6 +16,8 @@ services:
         value: 18527005-bc64-4580-a202-af4c4f9b59b7
       - key: TEST_RECORDS_DB
         value: 6817cd09-047c-4426-a26b-7f9d14ea6229
+      - key: MOCK_EXAMS_DB
+        value: b487ff37-d682-4ef1-92d7-13e39f6692e6
       - key: WEBHOOK_SECRET
         sync: false
       - key: GEMINI_API_KEY

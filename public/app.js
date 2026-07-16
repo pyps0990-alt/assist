@@ -19,6 +19,7 @@ function activateTab(tabName) {
   moveNavIndicator(btn);
   if (tabName === "dashboard") loadDashboard();
   if (tabName === "wrong") loadWrongList();
+  if (tabName === "mockExam") loadMockExams();
 }
 
 tabBtns.forEach((btn) => {
@@ -99,26 +100,40 @@ function subjectStyle(subject) {
   return subject ? `style="color:var(--subject-${esc(subject)})"` : "";
 }
 
-const SUBJECT_OPTIONS = ["國文", "英文", "數學", "自然", "社會"];
+const SUBJECT_OPTIONS = ["國文", "數A", "自然", "英文"];
 const STATUS_OPTIONS = ["未開始", "進行中", "已完成", "需複習"];
 
 function skeletonCards(n = 3) {
   return Array.from({ length: n }, () => '<div class="skeleton-card"></div>').join("");
 }
 
-const SUBJECT_ORDER = ["國文", "英文", "數學", "自然", "社會"];
+const SUBJECT_ORDER = ["國文", "數A", "自然", "英文"];
 const STATUS_PRIORITY = { 需複習: 0, 進行中: 1, 未開始: 2, 已完成: 3 };
 
+// 自動熟悉度：正確率(50%) + 錯題複習完成率(30%) + 讀書時數達成度(20%，以5小時為滿分)
+// 換算成 1-5 分。三項數據都沒有時，回退顯示手動輸入的熟悉度，都沒有就顯示「未評分」
+function autoMastery(s) {
+  const parts = [];
+  if (s.accuracy != null) parts.push({ v: s.accuracy, w: 0.5 });
+  if (s.reviewRate != null) parts.push({ v: s.reviewRate, w: 0.3 });
+  if (s.studyHours != null && s.studyHours > 0) parts.push({ v: Math.min(s.studyHours / 5, 1), w: 0.2 });
+  if (!parts.length) return null;
+  const totalWeight = parts.reduce((a, p) => a + p.w, 0);
+  const score = parts.reduce((a, p) => a + p.v * p.w, 0) / totalWeight;
+  return Math.round(score * 5 * 10) / 10;
+}
+
 // 自動排序：先依科目固定順序分組，組內把「需複習/進行中」排前面，
-// 熟悉度低的（較弱的單元）優先，方便一打開就看到最需要複習的內容
+// 自動熟悉度（沒有就用手動熟悉度）低的（較弱的單元）優先，方便一打開就看到最需要複習的內容
 function sortSubjects(subjects) {
   return [...subjects].sort((a, b) => {
     const subjectDiff = SUBJECT_ORDER.indexOf(a.subject) - SUBJECT_ORDER.indexOf(b.subject);
     if (subjectDiff !== 0) return subjectDiff;
     const statusDiff = (STATUS_PRIORITY[a.status] ?? 9) - (STATUS_PRIORITY[b.status] ?? 9);
     if (statusDiff !== 0) return statusDiff;
-    const masteryDiff = (a.mastery ?? 99) - (b.mastery ?? 99);
-    if (masteryDiff !== 0) return masteryDiff;
+    const aMastery = autoMastery(a) ?? a.mastery ?? 99;
+    const bMastery = autoMastery(b) ?? b.mastery ?? 99;
+    if (aMastery !== bMastery) return aMastery - bMastery;
     return a.unit.localeCompare(b.unit, "zh-Hant");
   });
 }
@@ -169,7 +184,8 @@ function renderCard(s) {
       <div class="stats">
         <span>正確率 <b>${pct(s.accuracy)}</b></span>
         <span>讀書時數 <b>${s.studyHours ?? 0}</b></span>
-        <span>熟悉度 <b>${s.mastery ?? "—"}</b></span>
+        <span>熟悉度(自動) <b>${autoMastery(s) ?? "—"}</b></span>
+        <span>熟悉度(手動) <b>${s.mastery ?? "—"}</b></span>
       </div>
       <div class="card-actions">
         <button class="link-btn" data-edit="${s.id}">${icon("edit")}編輯</button>
@@ -590,14 +606,164 @@ bindForm(
   (d) => ({
     date: d.date,
     subject: d.subject,
-    unitId: d.unitId || undefined,
+    sourceType: d.sourceType,
     source: d.source,
-    total: d.total,
-    correct: d.correct,
+    unitId: d.unitId || undefined,
+    minutes: d.minutes || undefined,
+    total: d.total || undefined,
+    correct: d.correct || undefined,
+    score: d.score || undefined,
     imageFileUploadId: d.imageFileUploadId || undefined,
+    essay1ImageId: d.essay1ImageId || undefined,
+    essay2ImageId: d.essay2ImageId || undefined,
+    mathWorkImageId: d.mathWorkImageId || undefined,
+    englishEssayImageId: d.englishEssayImageId || undefined,
+    englishWritingImageId: d.englishWritingImageId || undefined,
   }),
-  () => resetImagePreview("testImagePreview", "testImageFileUploadId", "testOcrMsg")
+  () => {
+    resetImagePreview("testImagePreview", "testImageFileUploadId", "testOcrMsg");
+    ["essay1", "essay2", "mathWork", "englishEssay", "englishWriting"].forEach((prefix) =>
+      resetImagePreview(`${prefix}Preview`, `${prefix}ImageId`, "testMsg")
+    );
+    loadTestList();
+  }
 );
+
+// ---- 考卷分頁：科目 chip 選擇、動態欄位顯示 ----
+let currentTestSubject = null;
+
+function applySubjectVisibility(subject) {
+  document.querySelectorAll("#testForm .subject-only").forEach((block) => {
+    const subjects = block.dataset.subjects.split(",");
+    const show = subjects.includes(subject);
+    block.style.display = show ? "" : "none";
+    block.querySelectorAll("input, select, textarea").forEach((f) => (f.disabled = !show));
+  });
+}
+
+document.querySelectorAll("#testSubjectChips .subject-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    currentTestSubject = chip.dataset.subject;
+    document.querySelectorAll("#testSubjectChips .subject-chip").forEach((c) => c.classList.remove("active"));
+    chip.classList.add("active");
+    document.getElementById("testSubjectField").value = currentTestSubject;
+    document.getElementById("testForm").style.display = "flex";
+    document.getElementById("testEmptyHint").style.display = "none";
+    document.getElementById("testListTitle").style.display = "block";
+    applySubjectVisibility(currentTestSubject);
+    loadTestList();
+  });
+});
+
+const GRADE_BLOCK_LABELS = {
+  essay1: "AI 批改作文一",
+  essay2: "AI 批改作文二",
+  mathWork: "AI 判讀手寫過程",
+  englishEssay: "AI 批改作文",
+  englishWriting: "AI 批改手寫作答",
+};
+
+function renderGradeBlock(recordId, key, block, title) {
+  if (!block.imageUrl) return "";
+  const scoreLine = block.score != null ? `<div class="grade-score">分數：${block.score}</div>` : "";
+  return `
+    <div class="grade-block">
+      <div class="test-block-title">${esc(title)}</div>
+      <img src="${esc(block.imageUrl)}" class="img-preview">
+      <button type="button" class="grade-btn" data-grade-record="${recordId}" data-grade-block="${key}">
+        ${icon("lightbulb")}${GRADE_BLOCK_LABELS[key]}
+      </button>
+      <div class="grade-result" data-grade-result="${recordId}-${key}">
+        ${scoreLine}
+        ${block.feedback ? `<div class="explanation-box">${esc(block.feedback)}</div>` : ""}
+      </div>
+    </div>`;
+}
+
+function renderTestCard(r) {
+  const answerStats =
+    r.total != null
+      ? `<span>答對 <b>${r.correct ?? 0}/${r.total}</b>（答錯 ${r.total - (r.correct ?? 0)}）</span>`
+      : "";
+  return `
+  <div class="card">
+    <div class="row">
+      <span class="title">${esc(r.source)}</span>
+      <span class="status-badge">${esc(r.sourceType || "")}</span>
+    </div>
+    <div class="subject" ${subjectStyle(r.subject)}>${esc(r.subject || "")} ・ ${esc(r.date || "")}</div>
+    <div class="stats">
+      ${answerStats}
+      ${r.score != null ? `<span>分數 <b>${r.score}</b></span>` : ""}
+      ${r.minutes != null ? `<span>作答時間 <b>${r.minutes} 分</b></span>` : ""}
+    </div>
+    ${r.imageUrl ? `<img src="${esc(r.imageUrl)}" class="img-preview">` : ""}
+    ${renderGradeBlock(r.id, "essay1", r.essay1, "作文一")}
+    ${renderGradeBlock(r.id, "essay2", r.essay2, "作文二")}
+    ${renderGradeBlock(r.id, "mathWork", r.mathWork, "手寫過程")}
+    ${renderGradeBlock(r.id, "englishEssay", r.englishEssay, "英文作文")}
+    ${renderGradeBlock(r.id, "englishWriting", r.englishWriting, "英文手寫作答")}
+  </div>`;
+}
+
+let testListCache = {};
+
+async function loadTestList() {
+  if (!currentTestSubject) return;
+  const list = document.getElementById("testList");
+  const cached = testListCache[currentTestSubject];
+  if (cached) renderTestList(list, cached);
+  else list.innerHTML = skeletonCards(2);
+  try {
+    const res = await fetch(`/api/test-records?subject=${encodeURIComponent(currentTestSubject)}`);
+    const items = await res.json();
+    testListCache[currentTestSubject] = items;
+    renderTestList(list, items);
+  } catch (e) {
+    if (!cached) list.innerHTML = `<p class="loading">載入失敗：${esc(e.message)}</p>`;
+  }
+}
+
+function renderTestList(list, items) {
+  if (!items.length) {
+    list.innerHTML = '<p class="loading">這個科目還沒有紀錄</p>';
+    return;
+  }
+  list.innerHTML = items.map(renderTestCard).join("");
+  list.querySelectorAll("[data-grade-record]").forEach((btn) => {
+    btn.addEventListener("click", () => runGrade(btn.dataset.gradeRecord, btn.dataset.gradeBlock, btn));
+  });
+}
+
+async function runGrade(recordId, block, btn) {
+  btn.disabled = true;
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = "批改中...";
+  try {
+    const res = await fetch(`/api/test-records/${recordId}/grade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ block }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "批改失敗");
+    const resultEl = document.querySelector(`[data-grade-result="${recordId}-${block}"]`);
+    resultEl.innerHTML = `
+      ${json.score != null ? `<div class="grade-score">分數：${json.score}</div>` : ""}
+      <div class="explanation-box">${esc(json.feedback)}</div>`;
+    btn.style.display = "none";
+  } catch (e) {
+    alert(e.message);
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+bindImageUpload(["essay1InputCamera", "essay1InputGallery"], "testMsg", "essay1Preview", "essay1ImageId");
+bindImageUpload(["essay2InputCamera", "essay2InputGallery"], "testMsg", "essay2Preview", "essay2ImageId");
+bindImageUpload(["mathWorkInputCamera", "mathWorkInputGallery"], "testMsg", "mathWorkPreview", "mathWorkImageId");
+bindImageUpload(["englishEssayInputCamera", "englishEssayInputGallery"], "testMsg", "englishEssayPreview", "englishEssayImageId");
+bindImageUpload(["englishWritingInputCamera", "englishWritingInputGallery"], "testMsg", "englishWritingPreview", "englishWritingImageId");
 
 bindForm(
   "wrongForm",
@@ -710,6 +876,130 @@ document.querySelectorAll(".panel-block > summary").forEach((summary) => {
     }
   });
 });
+
+// ---- 模擬考成績 + 手刻 SVG 折線圖 ----
+bindForm(
+  "mockExamForm",
+  "mockExamMsg",
+  "/api/mock-exams",
+  (d) => ({
+    name: d.name,
+    date: d.date,
+    chinese: d.chinese || undefined,
+    mathA: d.mathA || undefined,
+    science: d.science || undefined,
+    english: d.english || undefined,
+    notes: d.notes || undefined,
+  }),
+  () => loadMockExams()
+);
+
+function renderMockExamCard(e) {
+  return `
+  <div class="card">
+    <div class="row">
+      <span class="title">${esc(e.name)}</span>
+      <span class="status-badge">總級分 ${e.total ?? "-"}</span>
+    </div>
+    <div class="subject">${esc(e.date || "")}</div>
+    <div class="stats">
+      <span style="color:var(--subject-國文)">國文 <b>${e.chinese ?? "-"}</b></span>
+      <span style="color:var(--subject-數A)">數A <b>${e.mathA ?? "-"}</b></span>
+      <span style="color:var(--subject-自然)">自然 <b>${e.science ?? "-"}</b></span>
+      <span style="color:var(--subject-英文)">英文 <b>${e.english ?? "-"}</b></span>
+    </div>
+    ${e.notes ? `<div class="explanation-box">${esc(e.notes)}</div>` : ""}
+  </div>`;
+}
+
+// 純手刻 inline SVG 折線圖，不依賴任何圖表套件。畫總級分 + 四科各自的趨勢線
+function renderMockExamChart(exams) {
+  if (!exams.length) return '<p class="loading">還沒有模擬考成績，新增後這裡會畫出趨勢圖</p>';
+
+  const width = 320;
+  const height = 200;
+  const padding = { top: 16, right: 12, bottom: 28, left: 28 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+
+  const series = [
+    { key: "total", label: "總級分", color: "var(--accent)", max: 60 },
+    { key: "chinese", label: "國文", color: "var(--subject-國文)", max: 15 },
+    { key: "mathA", label: "數A", color: "var(--subject-數A)", max: 15 },
+    { key: "science", label: "自然", color: "var(--subject-自然)", max: 15 },
+    { key: "english", label: "英文", color: "var(--subject-英文)", max: 15 },
+  ];
+
+  const n = exams.length;
+  const xAt = (i) => padding.left + (n === 1 ? innerW / 2 : (innerW * i) / (n - 1));
+
+  function pointsFor(key, max) {
+    return exams
+      .map((e, i) => {
+        const v = e[key];
+        if (v == null) return null;
+        const y = padding.top + innerH - (v / max) * innerH;
+        return `${xAt(i)},${y}`;
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  const lines = series
+    .map((s) => {
+      const pts = pointsFor(s.key, s.max);
+      if (!pts) return "";
+      return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    })
+    .join("");
+
+  const xLabels = exams
+    .map((e, i) => `<text x="${xAt(i)}" y="${height - 8}" font-size="8" fill="var(--muted)" text-anchor="middle">${esc((e.name || "").slice(0, 4))}</text>`)
+    .join("");
+
+  const legend = series
+    .map(
+      (s, i) =>
+        `<span style="display:inline-flex;align-items:center;gap:0.3rem;margin-right:0.8rem;font-size:0.72rem;color:var(--muted)">
+          <span style="width:9px;height:9px;border-radius:50%;background:${s.color};display:inline-block"></span>${s.label}
+        </span>`
+    )
+    .join("");
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" style="width:100%;height:auto">
+      <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="var(--border)" stroke-width="1"/>
+      <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="var(--border)" stroke-width="1"/>
+      ${lines}
+      ${xLabels}
+    </svg>
+    <div style="margin-top:0.4rem">${legend}</div>`;
+}
+
+let mockExamsCache = null;
+
+async function loadMockExams() {
+  const chartEl = document.getElementById("mockExamChart");
+  const listEl = document.getElementById("mockExamList");
+  if (mockExamsCache) {
+    chartEl.innerHTML = renderMockExamChart(mockExamsCache);
+    listEl.innerHTML = mockExamsCache.slice().reverse().map(renderMockExamCard).join("") || '<p class="loading">尚無紀錄</p>';
+  } else {
+    chartEl.innerHTML = '<p class="loading">載入中...</p>';
+    listEl.innerHTML = skeletonCards(2);
+  }
+  try {
+    const res = await fetch("/api/mock-exams");
+    mockExamsCache = await res.json();
+    chartEl.innerHTML = renderMockExamChart(mockExamsCache);
+    listEl.innerHTML = mockExamsCache.slice().reverse().map(renderMockExamCard).join("") || '<p class="loading">尚無紀錄</p>';
+  } catch (e) {
+    if (!mockExamsCache) {
+      chartEl.innerHTML = `<p class="loading">載入失敗：${esc(e.message)}</p>`;
+      listEl.innerHTML = "";
+    }
+  }
+}
 
 loadUnits();
 loadDashboard();
