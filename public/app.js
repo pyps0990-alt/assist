@@ -644,6 +644,49 @@ bindForm(
   () => window.resetStudyTimer && window.resetStudyTimer()
 );
 
+// ---- AI 自動分類讀書紀錄的科目/單元 ----
+(function initClassifyStudyLog() {
+  const btn = document.getElementById("classifyStudyBtn");
+  const msg = document.getElementById("classifyMsg");
+  const summaryInput = document.getElementById("studySummaryInput");
+  const subjectSelect = document.getElementById("studySubjectSelect");
+  const unitSelect = document.getElementById("studyUnitSelect");
+
+  btn.addEventListener("click", async () => {
+    const summary = summaryInput.value.trim();
+    if (!summary) {
+      msg.textContent = "先填寫內容摘要再自動分類";
+      msg.classList.add("error");
+      return;
+    }
+    btn.disabled = true;
+    msg.textContent = "AI 判斷中...";
+    msg.classList.remove("error");
+    try {
+      const res = await fetch("/api/classify-study-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "分類失敗");
+      if (!json.matched) {
+        msg.textContent = "AI 找不到相符的單元，請手動選擇";
+        msg.classList.add("error");
+        return;
+      }
+      subjectSelect.value = json.subject;
+      unitSelect.value = json.unitId;
+      msg.textContent = `已自動選為 ${json.subject}／${json.unit}`;
+    } catch (e) {
+      msg.textContent = e.message;
+      msg.classList.add("error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+
 bindForm(
   "testForm",
   "testMsg",

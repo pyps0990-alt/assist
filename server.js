@@ -274,6 +274,53 @@ app.post("/api/study-log", async (req, res) => {
   }
 });
 
+// AI 自動分類：讀取讀書摘要文字，比對現有科目/單元清單，挑出最符合的一個
+app.post("/api/classify-study-log", async (req, res) => {
+  try {
+    if (!genAI) {
+      return res.status(503).json({ error: "尚未設定 GEMINI_API_KEY，請先在 .env 加上再重啟伺服器" });
+    }
+    const { summary } = req.body;
+    if (!summary || !summary.trim()) {
+      return res.status(400).json({ error: "請先填寫內容摘要再自動分類" });
+    }
+
+    const result = await notion.databases.query({ database_id: DB.subjects });
+    const list = result.results.map((p) => ({
+      id: p.id,
+      unit: titleOf(p, "單元"),
+      subject: selectOf(p, "科目"),
+    }));
+    if (!list.length) {
+      return res.status(400).json({ error: "目前還沒有任何單元，先去總覽新增單元" });
+    }
+
+    const numbered = list.map((s, i) => `${i + 1}. ${s.subject}/${s.unit}`).join("\n");
+    const prompt = `以下是學生目前已建立的科目/單元清單：
+${numbered}
+
+學生剛剛寫了一段讀書內容摘要：
+「${summary}」
+
+請判斷這段摘要最符合清單中的哪一個編號。只回覆一行「編號:N」（N 是清單裡的數字），
+如果完全找不到相關的，回覆「編號:0」。不要有其他文字，不要用 Markdown。`;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const result2 = await model.generateContent(prompt);
+    const text = stripMarkdown(result2.response.text());
+    const m = text.match(/編號[:：]\s*(\d+)/);
+    const idx = m ? Number(m[1]) : 0;
+
+    if (!idx || idx < 1 || idx > list.length) {
+      return res.json({ matched: false });
+    }
+    const matched = list[idx - 1];
+    res.json({ matched: true, subject: matched.subject, unitId: matched.id, unit: matched.unit });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 給 iOS 捷徑（Shortcuts）呼叫用的 webhook：計時器結束時自動記錄讀書時數
 // Apple 內建「時鐘」App 沒有對外的自動化 API，所以用「捷徑」自建一個計時器
 // （Wait 動作）取代，時間到就打這支 API 直接寫入 Notion。需要在 .env 設定 WEBHOOK_SECRET。

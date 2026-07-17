@@ -51,8 +51,14 @@
     </div>
     <form id="studyForm" class="form">
       <label>日期<input type="date" name="date" required></label>
+      <label>內容摘要<textarea name="summary" id="studySummaryInput" rows="2" placeholder="今天讀了什麼"></textarea></label>
+      <button type="button" id="classifyStudyBtn" class="grade-btn">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="4"/></svg></span>
+        AI 自動分類科目/單元
+      </button>
+      <p id="classifyMsg" class="msg"></p>
       <label>科目
-        <select name="subject" required>
+        <select name="subject" id="studySubjectSelect" required>
           <option value="國文">國文</option>
           <option value="數A">數A</option>
           <option value="自然">自然</option>
@@ -63,7 +69,6 @@
         <select name="unitId" id="studyUnitSelect"><option value="">(不指定)</option></select>
       </label>
       <label>讀書時數（小時）<input type="number" step="0.01" name="hours" id="studyHoursInput" placeholder="例如 1.5，或用上面的計時器自動填入" required></label>
-      <label>內容摘要<textarea name="summary" rows="2" placeholder="今天讀了什麼"></textarea></label>
       <button type="submit" class="primary-btn">新增紀錄</button>
     </form>
     <p id="studyMsg" class="msg"></p>
