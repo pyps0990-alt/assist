@@ -102,6 +102,7 @@ function esc(str) {
   }[c]));
 }
 
+// 依科目分組（用 <optgroup>），選單先看到科目再看到底下的單元，不再是一長串混雜清單
 async function loadUnits() {
   const res = await fetch("/api/subjects");
   const subjects = await res.json();
@@ -110,12 +111,27 @@ async function loadUnits() {
     const sel = document.getElementById(id);
     const current = sel.value;
     sel.innerHTML = '<option value="">(不指定)</option>';
-    subjects.forEach((s) => {
-      const opt = document.createElement("option");
-      opt.value = s.id;
-      opt.textContent = `${s.subject || ""} - ${s.unit}`;
-      sel.appendChild(opt);
+    SUBJECT_ORDER.forEach((subject) => {
+      const units = subjects.filter((s) => s.subject === subject);
+      if (!units.length) return;
+      const group = document.createElement("optgroup");
+      group.label = subject;
+      units.forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.unit;
+        group.appendChild(opt);
+      });
+      sel.appendChild(group);
     });
+    subjects
+      .filter((s) => !SUBJECT_ORDER.includes(s.subject))
+      .forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = `${s.subject || "未分類"} - ${s.unit}`;
+        sel.appendChild(opt);
+      });
     sel.value = current;
   });
   return subjects;
