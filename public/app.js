@@ -1,3 +1,32 @@
+// ---- 讓底部工具列/AI 按鈕真正「永遠浮在最下方」 ----
+// 手機瀏覽器（尤其 iOS Safari）在鍵盤彈出、網址列收合/展開時，position:fixed
+// 元素會用「layout viewport」而非「visual viewport」計算位置，導致工具列
+// 看起來沒有固定在最下面、或被鍵盤蓋住。用 visualViewport API 即時算出
+// 目前畫面實際可見範圍的下緣，動態調整這些元素的 bottom，確保任何時候
+// （載入中、鍵盤開啟、網址列變化）都貼齊真正看得到的螢幕底部。
+(function pinToVisibleBottom() {
+  const targets = () => [
+    document.querySelector(".glass-nav"),
+    document.getElementById("aiFab"),
+  ].filter(Boolean);
+
+  function reposition() {
+    const vv = window.visualViewport;
+    const hiddenBelow = vv ? Math.max(window.innerHeight - (vv.height + vv.offsetTop), 0) : 0;
+    targets().forEach((el) => {
+      el.style.setProperty("--viewport-offset", `${hiddenBelow}px`);
+    });
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", reposition);
+    window.visualViewport.addEventListener("scroll", reposition);
+  }
+  window.addEventListener("orientationchange", reposition);
+  document.addEventListener("DOMContentLoaded", reposition);
+  reposition();
+})();
+
 const tabBtns = document.querySelectorAll(".tab-btn");
 const panels = document.querySelectorAll(".tab-panel");
 const navIndicator = document.getElementById("navIndicator");

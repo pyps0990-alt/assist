@@ -87,10 +87,11 @@ h1 {
 }
 
 .glass-nav {
+  --viewport-offset: 0px;
   position: fixed;
   left: 0.9rem;
   right: 0.9rem;
-  bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px) + var(--viewport-offset));
   z-index: 20;
   max-width: 480px;
   margin-inline: auto;
@@ -482,9 +483,10 @@ main { padding: 1.1rem; }
 
 /* AI 浮動小工具：固定在工具列右上方的圓形按鈕 + 彈出面板 */
 .ai-fab {
+  --viewport-offset: 0px;
   position: fixed;
   right: 1.1rem;
-  bottom: calc(5.6rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(5.6rem + env(safe-area-inset-bottom, 0px) + var(--viewport-offset));
   z-index: 25;
   width: 54px;
   height: 54px;
