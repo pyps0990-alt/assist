@@ -302,20 +302,49 @@ ${numbered}
 學生剛剛寫了一段讀書內容摘要：
 「${summary}」
 
-請判斷這段摘要最符合清單中的哪一個編號。只回覆一行「編號:N」（N 是清單裡的數字），
-如果完全找不到相關的，回覆「編號:0」。不要有其他文字，不要用 Markdown。`;
+請判斷這段摘要最符合清單中的哪一個編號，回覆一行「編號:N」（N 是清單裡的數字）。
+如果清單裡沒有相符的單元，但你能從摘要判斷出屬於「國文」「數A」「自然」「英文」哪一科，
+且能歸納出一個簡短明確的新單元名稱（例如「三角函數」「英文文法－關係子句」），
+請回覆兩行，格式為：
+新單元科目:X
+新單元名稱:Y
+如果連科目都判斷不出來，回覆「編號:0」。不要有其他文字，不要用 Markdown。`;
 
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const result2 = await model.generateContent(prompt);
     const text = stripMarkdown(result2.response.text());
-    const m = text.match(/編號[:：]\s*(\d+)/);
-    const idx = m ? Number(m[1]) : 0;
 
-    if (!idx || idx < 1 || idx > list.length) {
-      return res.json({ matched: false });
+    const idxMatch = text.match(/編號[:：]\s*(\d+)/);
+    const idx = idxMatch ? Number(idxMatch[1]) : 0;
+    if (idx >= 1 && idx <= list.length) {
+      const matched = list[idx - 1];
+      return res.json({ matched: true, created: false, subject: matched.subject, unitId: matched.id, unit: matched.unit });
     }
-    const matched = list[idx - 1];
-    res.json({ matched: true, subject: matched.subject, unitId: matched.id, unit: matched.unit });
+
+    const subjectMatch = text.match(/新單元科目[:：]\s*(\S+)/);
+    const nameMatch = text.match(/新單元名稱[:：]\s*(.+)/);
+    if (subjectMatch && nameMatch) {
+      const newSubject = subjectMatch[1].trim();
+      const newUnitName = nameMatch[1].trim();
+      // 保險：避免跟現有單元只差在措辭而重複建立，先做一次不分大小寫/去空白的比對
+      const dup = list.find(
+        (s) => s.subject === newSubject && s.unit.replace(/\s/g, "") === newUnitName.replace(/\s/g, "")
+      );
+      if (dup) {
+        return res.json({ matched: true, created: false, subject: dup.subject, unitId: dup.id, unit: dup.unit });
+      }
+      const page = await notion.pages.create({
+        parent: { database_id: DB.subjects },
+        properties: {
+          單元: { title: [{ text: { content: newUnitName } }] },
+          科目: { select: { name: newSubject } },
+          狀態: { select: { name: "未開始" } },
+        },
+      });
+      return res.json({ matched: true, created: true, subject: newSubject, unitId: page.id, unit: newUnitName });
+    }
+
+    res.json({ matched: false });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

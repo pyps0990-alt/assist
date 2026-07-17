@@ -671,13 +671,19 @@ bindForm(
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "分類失敗");
       if (!json.matched) {
-        msg.textContent = "AI 找不到相符的單元，請手動選擇";
+        msg.textContent = "AI 連科目都判斷不出來，請手動選擇";
         msg.classList.add("error");
         return;
       }
+      if (json.created) {
+        await loadUnits();
+        dashboardCache = null;
+      }
       subjectSelect.value = json.subject;
       unitSelect.value = json.unitId;
-      msg.textContent = `已自動選為 ${json.subject}／${json.unit}`;
+      msg.textContent = json.created
+        ? `AI 判斷這是新單元，已自動建立「${json.subject}／${json.unit}」並選好`
+        : `已自動選為 ${json.subject}／${json.unit}`;
     } catch (e) {
       msg.textContent = e.message;
       msg.classList.add("error");
